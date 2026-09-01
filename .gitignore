@@ -7,6 +7,10 @@ venv/
 tasks.json
 uploads/
 
+# 含学生真实姓名学号的名单文件（隐私信息不上传）
+legacy/roster_*.txt
+*roster*.txt
+
 # Vercel
 .vercel/
 
