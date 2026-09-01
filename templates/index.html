@@ -1,0 +1,291 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4">
+    <h1 class="h4 mb-0 fw-bold">作业管理</h1>
+    <span class="badge text-bg-light ms-2 d-none d-sm-inline">教师端</span>
+</div>
+
+<!-- ============ 发布新作业 ============ -->
+<div class="card mb-4">
+    <div class="card-header">＋ 发布新作业</div>
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('index') }}">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label" for="name">作业名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="name" name="name"
+                           placeholder="例如：实验一 报告提交" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="deadline">截止时间 <span class="text-danger">*</span></label>
+                    <input type="datetime-local" class="form-control" id="deadline" name="deadline" required>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="regex">命名规范（正则表达式） <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control font-monospace" id="regex" name="regex"
+                           placeholder="例如：^202[0-9]{4}_[a-zA-Z\u4e00-\u9fa5]+_实验[0-9]+\..*$" required>
+                    <div class="form-text">
+                        学生的文件名必须与该正则<b>完全匹配</b>（从头到尾）。上传页面会将正则原文展示给学生。
+                    </div>
+                </div>
+                <div class="col-12">
+                    <label class="form-label" for="note">提交说明 / 示例（可选）</label>
+                    <input type="text" class="form-control" id="note" name="note"
+                           placeholder="例如：正确示例：2024001_张三_实验1.pdf">
+                    <div class="form-text">会展示在学生上传页面，建议填写一个正确的文件名示例。</div>
+                </div>
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary px-4">发布作业</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============ 作业列表 ============ -->
+<div class="d-flex align-items-center mb-3">
+    <h2 class="h5 mb-0 fw-bold">已发布的作业</h2>
+    <span class="badge text-bg-light ms-2">{{ tasks|length }}</span>
+</div>
+
+{% if not tasks %}
+    <div class="card"><div class="card-body text-center text-muted py-5">
+        还没有发布任何作业，请在上方表单发布第一个作业。
+    </div></div>
+{% else %}
+<div class="table-responsive-lg">
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th>作业名称</th>
+                <th>命名规范</th>
+                <th>截止时间</th>
+                <th>状态</th>
+                <th class="text-center">提交进度</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tasks %}
+            <tr id="task-{{ t.id }}">
+                <td data-label="作业名称">
+                    <div class="fw-bold">{{ t.name }}</div>
+                    <div class="text-muted" style="font-size:.72rem">ID：{{ t.id }}</div>
+                </td>
+                <td data-label="命名规范" style="max-width:260px">
+                    <code class="regex-code">{{ t.regex }}</code>
+                </td>
+                <td data-label="截止时间" class="text-nowrap">
+                    {{ t.deadline.replace('T', ' ') }}
+                    {% if t.expired %}<span class="badge text-bg-secondary ms-1">已截止</span>{% endif %}
+                </td>
+                <td data-label="状态">
+                    {% if t.status == 'open' %}
+                        <span class="badge text-bg-success">开启</span>
+                    {% else %}
+                        <span class="badge text-bg-danger">关闭</span>
+                    {% endif %}
+                </td>
+                <td data-label="提交进度">
+                    {% if t.progress %}
+                        {% set p = t.progress %}
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <span class="fw-bold" style="font-size:.9rem">{{ p.submitted }}/{{ p.total }}</span>
+                            <div class="progress flex-grow-1" style="max-width:110px;min-width:60px">
+                                <div class="progress-bar" style="width: {{ (p.submitted * 100 / p.total) if p.total else 0 }}%"></div>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                    onclick="loadProgress('{{ t.id }}', '{{ t.name }}')">
+                                名单
+                            </button>
+                        </div>
+                    {% else %}
+                        <span class="badge text-bg-info">{{ t.file_count }} 个文件</span>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                                onclick="openRosterModal('{{ t.id }}', '{{ t.name }}')">
+                            上传名单
+                        </button>
+                    {% endif %}
+                </td>
+                <td data-label="操作">
+                    <div class="task-actions">
+                        <a class="btn btn-sm btn-outline-primary" target="_blank"
+                           href="{{ url_for('upload_page', task_id=t.id) }}">查看上传页</a>
+                        <button type="button" class="btn btn-sm btn-outline-primary"
+                                onclick="copyLink('{{ t.id }}')">复制链接</button>
+                        <a class="btn btn-sm btn-outline-success"
+                           href="{{ url_for('download_task', task_id=t.id) }}">下载全部</a>
+                        <form class="d-inline" method="POST"
+                              action="{{ url_for('toggle_task', task_id=t.id) }}">
+                            {% if t.status == 'open' %}
+                                <button type="submit" class="btn btn-sm btn-outline-warning"
+                                        onclick="return confirm('确定要关闭「{{ t.name }}」的收集吗？关闭后学生将无法提交。');">
+                                    停止收集</button>
+                            {% else %}
+                                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                        onclick="return confirm('确定要重新开启「{{ t.name }}」的收集吗？');">
+                                    重新开启</button>
+                            {% endif %}
+                        </form>
+                        <form class="d-inline" method="POST"
+                              action="{{ url_for('delete_task', task_id=t.id) }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger"
+                                    onclick="return confirm('⚠️ 删除操作不可恢复！\n确定要删除作业「{{ t.name }}」及其全部已提交文件吗？');">
+                                删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- 名单上传弹窗 -->
+<div class="modal fade" id="rosterModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">上传名单 — <span id="rosterModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="rosterForm" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">粘贴名单（每行一个学生标识）</label>
+                        <textarea class="form-control" name="roster" rows="8"
+                                  placeholder="2024001_张三&#10;2024002_李四&#10;2024003_王五"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">或上传 .txt 文件</label>
+                        <input type="file" class="form-control" name="roster_file" accept=".txt">
+                        <div class="form-text">支持 UTF-8 或 GBK 编码的文本，每行一个学生。</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">保存名单</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 进度详情弹窗 -->
+<div class="modal fade" id="progressModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">提交情况 — <span id="progressModalName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="progressModalBody">
+                <div class="text-center text-muted py-4">加载中…</div>
+            </div>
+            <div class="modal-footer" id="progressModalFooter" style="display:none">
+                <button type="button" class="btn btn-outline-primary" id="copyMissingBtn">📋 复制未交名单</button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var currentMissing = [];
+
+// toast 提示
+function toast(text){
+    var el = document.createElement('div');
+    el.className = 'soft-toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(function(){ el.classList.add('show'); }, 10);
+    setTimeout(function(){
+        el.classList.remove('show');
+        setTimeout(function(){ el.remove(); }, 350);
+    }, 2000);
+}
+
+// 复制学生端链接
+function copyLink(taskId){
+    var link = location.origin + '/upload/' + taskId;
+    copyText(link, '学生端链接已复制，快去发给学生吧');
+}
+
+// 复制未交名单
+function copyMissing(){
+    if (!currentMissing.length){ toast('没有未交的同学'); return; }
+    copyText(currentMissing.join('\n'), '未交名单已复制（' + currentMissing.length + ' 人）');
+}
+
+// 通用复制（clipboard API + 降级）
+function copyText(text, tip){
+    function fallback(){
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); toast(tip); }
+        catch(e){ toast('复制失败，请手动复制'); }
+        ta.remove();
+    }
+    if (navigator.clipboard && window.isSecureContext){
+        navigator.clipboard.writeText(text).then(function(){ toast(tip); }, fallback);
+    } else {
+        fallback();
+    }
+}
+
+// 上传名单弹窗
+function openRosterModal(taskId, taskName){
+    document.getElementById('rosterForm').action = '/task/' + taskId + '/roster';
+    document.getElementById('rosterModalName').textContent = taskName;
+    new bootstrap.Modal(document.getElementById('rosterModal')).show();
+}
+
+// 加载提交进度（未交名单）
+function loadProgress(taskId, taskName){
+    document.getElementById('progressModalName').textContent = taskName;
+    document.getElementById('progressModalBody').innerHTML =
+        '<div class="text-center text-muted py-4">加载中…</div>';
+    document.getElementById('progressModalFooter').style.display = 'none';
+    new bootstrap.Modal(document.getElementById('progressModal')).show();
+    fetch('/task/' + taskId + '/progress')
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (!d.has_roster){
+                document.getElementById('progressModalBody').innerHTML =
+                    '<p class="text-center text-muted">尚未上传名单，已收 ' + d.file_count + ' 个文件。</p>';
+                return;
+            }
+            currentMissing = d.missing || [];
+            var pct = d.total ? Math.round(d.submitted * 100 / d.total) : 0;
+            var html = '<div class="d-flex align-items-center gap-3 mb-3">'
+                + '<span class="h4 mb-0 fw-bold">' + d.submitted + '/' + d.total + '</span>'
+                + '<div class="progress flex-grow-1" style="height:10px"><div class="progress-bar" style="width:' + pct + '%"></div></div>'
+                + '<span class="text-muted">' + pct + '%</span></div>';
+            if (d.missing.length){
+                html += '<h6 class="fw-bold mb-2" style="color:#9e4d45">未提交（' + d.missing.length + ' 人）</h6><div class="d-flex flex-wrap gap-2 mb-3">';
+                d.missing.forEach(function(m){ html += '<span class="badge text-bg-light">' + esc(m.replace(/\t/g, ' ')) + '</span>'; });
+                html += '</div>';
+            } else {
+                html += '<p class="fw-bold mb-3" style="color:#5d7a51">全部已提交，太棒了！</p>';
+            }
+            if (d.submitted_names.length){
+                html += '<h6 class="fw-bold mb-2" style="color:#5d7a51">已提交（' + d.submitted_names.length + ' 人）</h6><div class="d-flex flex-wrap gap-2">';
+                d.submitted_names.forEach(function(s){ html += '<span class="badge text-bg-light">' + esc(s.replace(/\t/g, ' ')) + '</span>'; });
+                html += '</div>';
+            }
+            document.getElementById('progressModalBody').innerHTML = html;
+            document.getElementById('progressModalFooter').style.display = '';
+        })
+        .catch(function(){
+            document.getElementById('progressModalBody').innerHTML =
+                '<p class="text-center text-danger">加载失败，请刷新重试。</p>';
+        });
+}
+function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+</script>
+{% endblock %}

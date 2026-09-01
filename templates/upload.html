@@ -1,0 +1,123 @@
+{% extends 'base.html' %}
+
+{% block nav_tag %}<span class="nav-tag ms-auto">学生端</span>{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header d-flex align-items-center gap-2">
+                <span>📚 {{ task.name }}</span>
+            </div>
+            <div class="card-body">
+                <p class="text-muted mb-3" style="font-size:.9rem">
+                    截止时间：<strong>{{ task.deadline.replace('T', ' ') }}</strong>
+                </p>
+
+                <hr class="my-3">
+
+                <h2 class="h6 fw-bold mb-2">文件命名规范</h2>
+                <p class="mb-2" style="font-size:.9rem">
+                    上传的文件名必须与以下正则<strong>完全匹配</strong>（从头到尾）：
+                </p>
+                <div class="text-center mb-2">
+                    <code class="regex-code d-block p-2">{{ task.regex }}</code>
+                </div>
+
+                {% if task.note %}
+                    <div class="alert alert-info py-2 mb-3" style="font-size:.9rem">
+                        {{ task.note }}
+                    </div>
+                {% endif %}
+
+                <hr class="my-3">
+
+                <form id="uploadForm" method="POST"
+                      action="{{ url_for('upload_page', task_id=task.id) }}"
+                      enctype="multipart/form-data">
+                    <label class="form-label" for="file">选择文件</label>
+                    <input type="file" class="form-control mb-3" id="file" name="file" required>
+                    <button type="submit" class="btn btn-primary w-100 py-2" id="submitBtn">
+                        提交作业
+                    </button>
+                </form>
+
+                <p class="text-muted mt-3 mb-0" style="font-size:.8rem">
+                    单个文件不超过 {{ max_mb or 100 }} MB；允许重复提交：同名文件将直接覆盖，以最后一次提交为准。
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    var form = document.getElementById('uploadForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e){
+        e.preventDefault();
+        var btn = document.getElementById('submitBtn');
+        var fileInput = document.getElementById('file');
+
+        // 提交前本地预检文件大小，超限直接提示（Vercel 上约 4.5MB 硬限制）
+        var MAX_MB = {{ max_mb or 100 }};
+        var f = fileInput.files && fileInput.files[0];
+        if (f && MAX_MB && f.size > MAX_MB * 1024 * 1024) {
+            showModal(false, '文件过大（' + (f.size / 1024 / 1024).toFixed(1) + ' MB），'
+                    + '单个文件不能超过 ' + MAX_MB + ' MB，请压缩后再提交。');
+            return;
+        }
+
+        var fd = new FormData(form);
+        btn.disabled = true;
+        btn.textContent = '提交中…';
+        fetch(form.action, {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'fetch' },
+            redirect: 'manual'
+        }).then(function(resp){
+            // 后端 AJAX 返回 JSON
+            var ct = resp.headers.get('content-type') || '';
+            if (ct.indexOf('json') >= 0) return resp.json().then(function(d){
+                return { ok: resp.ok, data: d };
+            });
+            // 兜底：后端返回了 HTML（如 413 被全局处理或状态页），按失败处理
+            return { ok: false, data: { message: '提交失败，请检查文件名是否符合规范后重试。' } };
+        }).then(function(r){
+            showModal(r.data.success, r.data.message || (r.ok ? '提交成功' : '提交失败'));
+        }).catch(function(){
+            showModal(false, '网络错误，请重试。');
+        }).finally(function(){
+            btn.disabled = false;
+            btn.textContent = '提交作业';
+            fileInput.value = '';
+        });
+    });
+
+    // 中央弹窗
+    function showModal(success, message){
+        var icon = success ? '✅' : '❌';
+        var title = success ? '提交成功' : '提交失败';
+        var color = success ? '#5d7a51' : '#9e4d45';
+        var html = '<div class="result-modal-backdrop" id="resultBackdrop">'
+            + '<div class="result-modal">'
+            + '<div class="result-icon">' + icon + '</div>'
+            + '<div class="result-title" style="color:' + color + '">' + title + '</div>'
+            + '<p class="text-muted mb-4" style="font-size:.95rem">' + esc(message) + '</p>'
+            + '<button class="btn btn-primary w-100" onclick="document.getElementById(\'resultBackdrop\').remove()">好的</button>'
+            + '</div></div>';
+        var wrap = document.createElement('div');
+        wrap.innerHTML = html;
+        document.body.appendChild(wrap);
+        // 点击遮罩关闭
+        wrap.querySelector('#resultBackdrop').addEventListener('click', function(e){
+            if (e.target === this) this.remove();
+        });
+    }
+    function esc(s){ var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+})();
+</script>
+{% endblock %}

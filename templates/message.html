@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block nav_tag %}<span class="nav-tag ms-auto">学生端</span>{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card text-center">
+            <div class="card-body py-5">
+                {% if reason == 'closed' %}
+                    <div class="display-6 mb-3">🚫</div>
+                {% else %}
+                    <div class="display-6 mb-3">⏰</div>
+                {% endif %}
+                <h1 class="h4 mb-3 fw-bold">{{ message }}</h1>
+                <p class="text-muted mb-1">作业：{{ task.name }}</p>
+                <p class="text-muted mb-4">截止时间：{{ task.deadline.replace('T', ' ') }}</p>
+                <p class="mb-0 fw-bold" style="color: #8a7a66">{{ extra or '如有疑问，请联系学委' }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
