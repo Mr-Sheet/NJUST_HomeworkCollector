@@ -55,8 +55,9 @@ PROJECT_NAME = "快点交作业"  # 站点名，模板统一引用
 # 修改方式：设置环境变量 TEACHER_PASSWORD（Vercel 后台也支持），或直接改这里。
 TEACHER_PASSWORD = os.environ.get("TEACHER_PASSWORD", "123456")
 
-# Vercel Serverless 对请求体约 4.5MB 硬限制；本地无此限制
-MAX_UPLOAD_MB = 4 if IS_VERCEL else 100
+# Vercel Serverless 对请求体约 4.5MB 硬限制；本地无此限制；
+# 其他平台（如 CloudBase 云托管）可通过环境变量 MAX_UPLOAD_MB 自定义
+MAX_UPLOAD_MB = int(os.environ.get("MAX_UPLOAD_MB", 4 if IS_VERCEL else 100))
 
 # 无需登录即可访问的端点：学生上传页、静态资源、登录页本身
 PUBLIC_ENDPOINTS = {"upload_page", "static", "login"}

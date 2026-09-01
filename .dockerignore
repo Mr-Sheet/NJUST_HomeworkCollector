@@ -1,0 +1,21 @@
+venv/
+.git/
+.vercel/
+.workbuddy/
+__pycache__/
+*.pyc
+
+# 运行时数据与隐私文件，不进镜像
+tasks.json
+uploads/
+legacy/
+
+# 与运行无关的资料
+docs/
+assets/
+configs/
+app_manager.sh
+homework_submit.py
+README.md
+LICENSE
+vercel.json
