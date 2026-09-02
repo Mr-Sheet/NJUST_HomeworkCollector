@@ -1,4 +1,4 @@
-FROM ccr.ccs.tencentyun.com/library/python:3.11-slim
+FROM mirror.baidubce.com/library/python:3.11-slim
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
